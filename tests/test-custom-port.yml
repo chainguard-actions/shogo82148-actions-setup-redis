@@ -1,0 +1,32 @@
+name: Test redis setup with custom port
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7"
+          redis-port: "6380"
+          auto-start: "true"
+      - name: Assert redis-port output matches custom port
+        env:
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "redis-port: $REDIS_PORT"
+          if [ "$REDIS_PORT" != "6380" ]; then
+            echo "FAIL: expected redis-port=6380, got $REDIS_PORT"
+            exit 1
+          fi
+          echo "PASS: redis-port=$REDIS_PORT"
+      - name: Assert redis-server is running on custom port
+        run: |
+          echo "Checking redis-server on port 6380..."
+          if ! redis-cli -p 6380 ping | grep -q PONG; then
+            echo "FAIL: redis-server did not respond to PING on port 6380"
+            exit 1
+          fi
+          echo "PASS: redis-server is running on port 6380"
