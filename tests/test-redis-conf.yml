@@ -1,0 +1,46 @@
+name: Test Redis setup with redis-conf input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "latest"
+          redis-port: "6379"
+          auto-start: "true"
+          redis-conf: |
+            maxmemory 64mb
+            maxmemory-policy allkeys-lru
+      - name: Assert redis-port output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "actual redis-port: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: redis-port output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-port=$ACTUAL"
+      - name: Assert redis-server is running
+        run: |
+          echo "Checking redis-server on port 6379..."
+          if ! redis-cli -p 6379 ping | grep -q PONG; then
+            echo "FAIL: redis-server did not respond to PING"
+            exit 1
+          fi
+          echo "PASS: redis-server is running"
+      - name: Assert maxmemory config was applied
+        run: |
+          echo "Checking maxmemory config..."
+          MAXMEM=$(redis-cli -p 6379 CONFIG GET maxmemory | tail -1)
+          echo "maxmemory value: $MAXMEM"
+          # 64mb = 67108864 bytes
+          if [ "$MAXMEM" != "67108864" ]; then
+            echo "FAIL: expected maxmemory=67108864, got $MAXMEM"
+            exit 1
+          fi
+          echo "PASS: maxmemory=$MAXMEM"
