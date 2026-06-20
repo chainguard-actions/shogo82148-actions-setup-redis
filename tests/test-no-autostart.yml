@@ -1,0 +1,42 @@
+name: Test Redis setup with auto-start disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7"
+          redis-port: "6379"
+          auto-start: "false"
+      - name: Assert redis-path output is set even without auto-start
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "actual redis-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected redis-path to be non-empty even when auto-start is false"
+            exit 1
+          fi
+          echo "PASS: redis-path output is set"
+      - name: Assert redis-server binary exists at the reported path
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ ! -f "$REDIS_PATH/redis-server" ] && ! command -v redis-server &>/dev/null; then
+            echo "FAIL: redis-server binary not found at '$REDIS_PATH' or in PATH"
+            exit 1
+          fi
+          echo "PASS: redis-server binary is accessible"
+      - name: Assert redis-server is NOT running (auto-start disabled)
+        run: |
+          echo "Checking that redis-server is NOT running on port 6379..."
+          if redis-cli -p 6379 ping 2>/dev/null | grep -q "PONG"; then
+            echo "FAIL: redis-server is running but auto-start was set to false"
+            exit 1
+          fi
+          echo "PASS: redis-server is not running as expected"
