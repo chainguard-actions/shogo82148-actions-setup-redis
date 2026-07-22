@@ -1,0 +1,54 @@
+name: Test Redis setup with extra redis.conf configuration
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "latest"
+          redis-port: "6379"
+          auto-start: "true"
+          redis-conf: |
+            maxmemory 64mb
+            maxmemory-policy allkeys-lru
+      - name: Assert redis-port output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "actual redis-port: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: redis-port output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-port output is set to $ACTUAL"
+      - name: Assert redis-server is running
+        run: |
+          echo "Checking redis-server is running on port 6379..."
+          if ! redis-cli -p 6379 ping | grep -q "PONG"; then
+            echo "FAIL: redis-server did not respond to PING on port 6379"
+            exit 1
+          fi
+          echo "PASS: redis-server responded to PING"
+      - name: Assert maxmemory-policy is configured
+        run: |
+          POLICY=$(redis-cli -p 6379 config get maxmemory-policy | tail -1 | tr -d '[:space:]')
+          echo "actual maxmemory-policy: $POLICY"
+          if [ "$POLICY" != "allkeys-lru" ]; then
+            echo "FAIL: expected maxmemory-policy 'allkeys-lru', got '$POLICY'"
+            exit 1
+          fi
+          echo "PASS: maxmemory-policy is allkeys-lru"
+      - name: Assert maxmemory is configured
+        run: |
+          MAXMEM=$(redis-cli -p 6379 config get maxmemory | tail -1 | tr -d '[:space:]')
+          echo "actual maxmemory: $MAXMEM"
+          # 64mb = 67108864 bytes
+          if [ "$MAXMEM" != "67108864" ]; then
+            echo "FAIL: expected maxmemory '67108864' (64mb), got '$MAXMEM'"
+            exit 1
+          fi
+          echo "PASS: maxmemory is 67108864 (64mb)"
