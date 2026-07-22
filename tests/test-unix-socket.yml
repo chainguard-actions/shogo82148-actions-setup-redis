@@ -1,0 +1,58 @@
+name: Test Redis unix socket connectivity
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "latest"
+          redis-port: "6379"
+          auto-start: "true"
+      - name: Assert redis-unix-socket output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "actual redis-unix-socket: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: redis-unix-socket output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-unix-socket output is set to $ACTUAL"
+      - name: Assert unix socket file exists
+        env:
+          SOCKET_PATH: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "Checking if unix socket file exists at $SOCKET_PATH..."
+          if [ ! -S "$SOCKET_PATH" ]; then
+            echo "FAIL: unix socket file not found at $SOCKET_PATH"
+            ls -la "$(dirname "$SOCKET_PATH")" || true
+            exit 1
+          fi
+          echo "PASS: unix socket file exists at $SOCKET_PATH"
+      - name: Assert redis-server responds via unix socket
+        env:
+          SOCKET_PATH: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "Checking if redis-server responds via unix socket $SOCKET_PATH..."
+          if ! redis-cli -s "$SOCKET_PATH" ping | grep -q "PONG"; then
+            echo "FAIL: redis-server is not responding via unix socket"
+            exit 1
+          fi
+          echo "PASS: redis-server responded with PONG via unix socket"
+      - name: Assert basic set/get works via unix socket
+        env:
+          SOCKET_PATH: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "Testing set/get via unix socket..."
+          redis-cli -s "$SOCKET_PATH" SET testkey "hello-from-socket"
+          VALUE=$(redis-cli -s "$SOCKET_PATH" GET testkey)
+          echo "actual value: $VALUE"
+          if [ "$VALUE" != "hello-from-socket" ]; then
+            echo "FAIL: expected 'hello-from-socket', got '$VALUE'"
+            exit 1
+          fi
+          echo "PASS: set/get works via unix socket"

@@ -1,0 +1,51 @@
+name: Test Redis setup with specific version
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7.0"
+          redis-port: "6379"
+          auto-start: "true"
+      - name: Assert redis-port output
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "actual redis-port: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: redis-port output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-port output is set to $ACTUAL"
+      - name: Assert redis-path output
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "actual redis-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: redis-path output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-path output is set to $ACTUAL"
+      - name: Assert redis-server is running
+        run: |
+          echo "Checking if redis-server is listening on port 6379..."
+          if ! redis-cli -p 6379 ping | grep -q "PONG"; then
+            echo "FAIL: redis-server is not responding on port 6379"
+            exit 1
+          fi
+          echo "PASS: redis-server responded with PONG"
+      - name: Assert redis version is 7.0.x
+        run: |
+          VERSION=$(redis-cli -p 6379 INFO server | grep redis_version | tr -d '[:space:]' | cut -d: -f2)
+          echo "actual redis version: $VERSION"
+          if ! echo "$VERSION" | grep -q "^7\.0\."; then
+            echo "FAIL: expected redis version 7.0.x, got '$VERSION'"
+            exit 1
+          fi
+          echo "PASS: redis version is $VERSION (7.0.x)"

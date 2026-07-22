@@ -1,0 +1,50 @@
+name: "actions-setup-redis"
+description: "setup redis database"
+author: "ICHINOSE Shogo"
+inputs:
+  github-token:
+    description: the github token for verifying redis binary
+    default: "${{ github.token }}"
+  distribution:
+    description: the distribution of redis
+    default: "redis"
+    required: true
+  redis-version:
+    description: the version of redis
+    default: "latest"
+    required: true
+  redis-port:
+    description: the port of redis-sever
+    default: "6379"
+    required: true
+  redis-tls-port:
+    description: the tls port of redis-sever
+    default: "0"
+    required: false
+  auto-start:
+    description: enable to auto-start redis-sever
+    default: "true"
+    required: true
+  redis-conf:
+    description: extra configurations for redis.conf
+    required: false
+outputs:
+  redis-port:
+    description: the port of redis-sever
+  redis-tls-port:
+    description: the tls port of redis-sever
+  redis-tls-dir:
+    description: the directory path for tls sample certificates/keys
+  redis-unix-socket:
+    description: the unix domain socket that redis-server listens
+  redis-path:
+    description: The absolute path to the redis-server, redis-cli, etc.
+runs:
+  pre: chainguard-phonehome.js
+  using: "node24"
+  main: "dist/setup-redis.js"
+  post: "dist/cleanup-redis.js"
+  post-if: "always()"
+branding:
+  icon: "database"
+  color: "red"
