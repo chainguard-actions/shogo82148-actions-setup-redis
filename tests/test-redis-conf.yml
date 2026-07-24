@@ -1,0 +1,61 @@
+name: Test Redis setup with extra redis.conf options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: setup-redis
+        name: Setup Redis with extra config (requirepass)
+        uses: .
+        with:
+          redis-version: "7"
+          redis-conf: |
+            requirepass testpassword123
+            maxmemory 64mb
+            maxmemory-policy allkeys-lru
+
+      - name: Assert redis-port output
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "actual redis-port: $ACTUAL"
+          if [ "$ACTUAL" != "6379" ]; then
+            echo "FAIL: expected redis-port to be 6379, got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: redis-port is 6379"
+
+      - name: Assert Redis rejects unauthenticated access
+        run: |
+          echo "Checking Redis requires authentication..."
+          RESULT=$(redis-cli -p 6379 ping 2>&1 || true)
+          echo "Result without auth: $RESULT"
+          if echo "$RESULT" | grep -q "PONG"; then
+            echo "FAIL: Redis responded to PING without authentication (requirepass not applied)"
+            exit 1
+          fi
+          echo "PASS: Redis requires authentication"
+
+      - name: Assert Redis accepts authenticated access
+        run: |
+          echo "Checking Redis accepts authenticated access..."
+          if ! redis-cli -p 6379 -a testpassword123 ping 2>/dev/null | grep -q "PONG"; then
+            echo "FAIL: Redis did not respond to authenticated PING"
+            exit 1
+          fi
+          echo "PASS: Redis accepts authenticated access"
+
+      - name: Assert maxmemory config is applied
+        run: |
+          echo "Checking maxmemory config..."
+          MAXMEM=$(redis-cli -p 6379 -a testpassword123 config get maxmemory 2>/dev/null | tail -1)
+          echo "maxmemory value: $MAXMEM"
+          # 64mb = 67108864 bytes
+          if [ "$MAXMEM" != "67108864" ]; then
+            echo "FAIL: expected maxmemory to be 67108864 (64mb), got '$MAXMEM'"
+            exit 1
+          fi
+          echo "PASS: maxmemory is set to 64mb"

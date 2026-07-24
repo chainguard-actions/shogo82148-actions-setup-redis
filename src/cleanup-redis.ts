@@ -1,0 +1,21 @@
+import * as cleanup from "./cleanup.js";
+import * as core from "@actions/core";
+import * as io from "@actions/io";
+
+async function run(): Promise<void> {
+  try {
+    await cleanup.shutdownRedis(core.getState("REDIS_CLI"), core.getState("REDIS_UNIX_SOCKET"));
+    const confDir = core.getState("REDIS_CONF_DIR");
+    if (confDir !== "") {
+      await io.rmRF(confDir);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      core.setFailed(error);
+    } else {
+      core.setFailed(`${error}`);
+    }
+  }
+}
+
+void run();
