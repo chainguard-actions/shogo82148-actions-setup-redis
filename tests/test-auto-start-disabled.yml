@@ -1,0 +1,65 @@
+name: Test Redis auto-start disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: setup-redis
+        name: Setup Redis with auto-start disabled
+        uses: .
+        with:
+          redis-version: "latest"
+          auto-start: "false"
+
+      - name: Assert redis-path output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "actual redis-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected redis-path to be non-empty"
+            exit 1
+          fi
+          echo "PASS: redis-path is set to $ACTUAL"
+
+      - name: Assert Redis is NOT running (auto-start disabled)
+        run: |
+          echo "Checking Redis is NOT running on port 6379..."
+          if redis-cli -p 6379 ping 2>/dev/null | grep -q PONG; then
+            echo "FAIL: Redis is running but auto-start was disabled"
+            exit 1
+          fi
+          echo "PASS: Redis is not running as expected"
+
+      - name: Assert redis-server binary is available
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ -z "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path is empty"
+            exit 1
+          fi
+          if [ ! -d "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path directory does not exist: $REDIS_PATH"
+            exit 1
+          fi
+          echo "PASS: redis-path directory exists"
+
+      - name: Manually start Redis and verify it works
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Starting Redis manually..."
+          "$REDIS_PATH/redis-server" --port 6379 --daemonize yes --logfile /tmp/redis-manual.log
+          sleep 2
+          if redis-cli -p 6379 ping 2>/dev/null | grep -q PONG; then
+            echo "PASS: Manually started Redis responded to PING"
+          else
+            echo "FAIL: Manually started Redis did not respond to PING"
+            cat /tmp/redis-manual.log || true
+            exit 1
+          fi

@@ -1,0 +1,65 @@
+name: Test basic Redis setup
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: setup-redis
+        name: Setup Redis with defaults
+        uses: .
+        with:
+          redis-version: "latest"
+
+      - name: Assert redis-port output
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "actual redis-port: $ACTUAL"
+          if [ "$ACTUAL" != "6379" ]; then
+            echo "FAIL: expected redis-port to be 6379, got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: redis-port is 6379"
+
+      - name: Assert redis-path output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "actual redis-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected redis-path to be non-empty"
+            exit 1
+          fi
+          echo "PASS: redis-path is set to $ACTUAL"
+
+      - name: Assert redis-server is running on port 6379
+        run: |
+          echo "Checking Redis is listening on port 6379..."
+          for i in $(seq 1 10); do
+            if redis-cli -p 6379 ping 2>/dev/null | grep -q PONG; then
+              echo "PASS: Redis responded to PING on port 6379"
+              exit 0
+            fi
+            echo "Attempt $i: Redis not ready yet, waiting..."
+            sleep 1
+          done
+          echo "FAIL: Redis did not respond to PING on port 6379"
+          exit 1
+
+      - name: Assert redis-cli is available at redis-path
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ ! -d "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path directory does not exist: $REDIS_PATH"
+            exit 1
+          fi
+          if [ ! -f "$REDIS_PATH/redis-cli" ] && ! command -v redis-cli >/dev/null 2>&1; then
+            echo "FAIL: redis-cli not found at $REDIS_PATH or in PATH"
+            exit 1
+          fi
+          echo "PASS: redis-cli is available"

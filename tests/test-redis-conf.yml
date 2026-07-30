@@ -1,0 +1,67 @@
+name: Test Redis extra configuration
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: setup-redis
+        name: Setup Redis with extra config
+        uses: .
+        with:
+          redis-version: "latest"
+          redis-conf: |
+            maxmemory 64mb
+            maxmemory-policy allkeys-lru
+
+      - name: Assert redis-port output
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "actual redis-port: $ACTUAL"
+          if [ "$ACTUAL" != "6379" ]; then
+            echo "FAIL: expected redis-port to be 6379, got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: redis-port is 6379"
+
+      - name: Assert Redis is running
+        run: |
+          echo "Checking Redis is listening on port 6379..."
+          for i in $(seq 1 10); do
+            if redis-cli -p 6379 ping 2>/dev/null | grep -q PONG; then
+              echo "PASS: Redis responded to PING"
+              exit 0
+            fi
+            echo "Attempt $i: Redis not ready yet, waiting..."
+            sleep 1
+          done
+          echo "FAIL: Redis did not respond to PING"
+          exit 1
+
+      - name: Assert maxmemory config is applied
+        run: |
+          echo "Checking maxmemory configuration..."
+          MAXMEM=$(redis-cli -p 6379 CONFIG GET maxmemory 2>/dev/null | tail -1)
+          echo "maxmemory value: $MAXMEM"
+          # 64mb = 67108864 bytes
+          if [ "$MAXMEM" = "67108864" ]; then
+            echo "PASS: maxmemory is set to 64mb (67108864 bytes)"
+          else
+            echo "FAIL: expected maxmemory=67108864, got '$MAXMEM'"
+            exit 1
+          fi
+
+      - name: Assert maxmemory-policy config is applied
+        run: |
+          echo "Checking maxmemory-policy configuration..."
+          POLICY=$(redis-cli -p 6379 CONFIG GET maxmemory-policy 2>/dev/null | tail -1)
+          echo "maxmemory-policy value: $POLICY"
+          if [ "$POLICY" = "allkeys-lru" ]; then
+            echo "PASS: maxmemory-policy is set to allkeys-lru"
+          else
+            echo "FAIL: expected maxmemory-policy=allkeys-lru, got '$POLICY'"
+            exit 1
+          fi

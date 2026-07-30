@@ -1,0 +1,52 @@
+name: Test Redis unix socket output
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: setup-redis
+        name: Setup Redis (default)
+        uses: .
+        with:
+          redis-version: "latest"
+
+      - name: Assert redis-unix-socket output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "actual redis-unix-socket: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected redis-unix-socket to be non-empty"
+            exit 1
+          fi
+          echo "PASS: redis-unix-socket is set to $ACTUAL"
+
+      - name: Assert Redis responds via unix socket
+        env:
+          SOCKET: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "Checking Redis via unix socket: $SOCKET"
+          for i in $(seq 1 10); do
+            if redis-cli -s "$SOCKET" ping 2>/dev/null | grep -q PONG; then
+              echo "PASS: Redis responded to PING via unix socket"
+              exit 0
+            fi
+            echo "Attempt $i: Redis not ready via socket yet, waiting..."
+            sleep 1
+          done
+          echo "FAIL: Redis did not respond to PING via unix socket"
+          exit 1
+
+      - name: Assert redis-port output is also set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "actual redis-port: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected redis-port to be non-empty"
+            exit 1
+          fi
+          echo "PASS: redis-port is $ACTUAL"
