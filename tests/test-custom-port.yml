@@ -1,0 +1,40 @@
+name: Test Redis setup with custom port
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis archive extraction)
+        run: sudo apt-get install -y zstd
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7"
+          redis-port: "6380"
+      - name: Assert redis-port output matches requested port
+        env:
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "redis-port: $REDIS_PORT"
+          if [ "$REDIS_PORT" != "6380" ]; then
+            echo "FAIL: expected port 6380 but got '$REDIS_PORT'"
+            exit 1
+          fi
+          echo "PASS: redis-port=$REDIS_PORT"
+      - name: Assert redis-server is running on custom port 6380
+        run: |
+          echo "Checking Redis on port 6380"
+          if ! redis-cli -p 6380 ping | grep -q PONG; then
+            echo "FAIL: redis-server did not respond to PING on port 6380"
+            exit 1
+          fi
+          echo "PASS: Redis responded to PING on port 6380"
+      - name: Assert default port 6379 is NOT in use
+        run: |
+          if redis-cli -p 6379 ping 2>/dev/null | grep -q PONG; then
+            echo "FAIL: redis-server unexpectedly responded on default port 6379"
+            exit 1
+          fi
+          echo "PASS: port 6379 is not in use as expected"

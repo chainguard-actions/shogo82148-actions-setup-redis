@@ -1,0 +1,55 @@
+name: Test Redis setup with auto-start disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis archive extraction)
+        run: sudo apt-get install -y zstd
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7"
+          auto-start: "false"
+      - name: Assert redis-path output is set
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ -z "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-path=$REDIS_PATH"
+      - name: Assert redis-server binary exists
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Checking for redis-server binary in $REDIS_PATH"
+          if [ ! -f "$REDIS_PATH/redis-server" ]; then
+            echo "FAIL: redis-server binary not found at $REDIS_PATH/redis-server"
+            exit 1
+          fi
+          echo "PASS: redis-server binary found"
+      - name: Assert redis-server is NOT running (auto-start disabled)
+        run: |
+          echo "Checking that Redis is NOT running on port 6379"
+          if redis-cli -p 6379 ping 2>/dev/null | grep -q PONG; then
+            echo "FAIL: redis-server is running but auto-start was disabled"
+            exit 1
+          fi
+          echo "PASS: redis-server is not running as expected"
+      - name: Start redis-server manually and verify it works
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Starting redis-server manually on port 6379"
+          "$REDIS_PATH/redis-server" --port 6379 --daemonize yes
+          sleep 2
+          if ! "$REDIS_PATH/redis-cli" -p 6379 ping | grep -q PONG; then
+            echo "FAIL: manually started redis-server did not respond to PING"
+            exit 1
+          fi
+          echo "PASS: manually started redis-server responded to PING"
