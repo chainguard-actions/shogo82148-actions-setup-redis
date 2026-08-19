@@ -1,4 +1,4 @@
-name: Test basic Redis setup
+name: Test Redis specific version
 on:
   workflow_dispatch:
 jobs:
@@ -8,10 +8,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - id: setup-redis
-        name: Setup Redis (default)
+        name: Setup Redis 7.x
         uses: .
         with:
-          redis-version: "latest"
+          redis-version: "7"
           auto-start: "true"
 
       - name: Assert redis-port output
@@ -36,22 +36,23 @@ jobs:
           fi
           echo "PASS: redis-path=$ACTUAL"
 
-      - name: Assert redis-server is running on default port
+      - name: Assert redis-server is running
         run: |
-          echo "Checking redis-server on port 6379..."
+          echo "Checking redis-server is running..."
           if ! redis-cli -p 6379 ping | grep -q "PONG"; then
             echo "FAIL: redis-server did not respond with PONG"
             exit 1
           fi
           echo "PASS: redis-server is running"
 
-      - name: Assert redis-unix-socket output
-        env:
-          ACTUAL: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+      - name: Assert Redis version is 7.x
         run: |
-          echo "actual redis-unix-socket: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: redis-unix-socket output is empty"
+          echo "Checking Redis version..."
+          VERSION=$(redis-cli -p 6379 info server | grep redis_version | cut -d: -f2 | tr -d '[:space:]')
+          echo "Redis version: $VERSION"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          if [ "$MAJOR" != "7" ]; then
+            echo "FAIL: expected Redis major version 7 but got $MAJOR (full: $VERSION)"
             exit 1
           fi
-          echo "PASS: redis-unix-socket=$ACTUAL"
+          echo "PASS: Redis version is $VERSION (major=7)"
