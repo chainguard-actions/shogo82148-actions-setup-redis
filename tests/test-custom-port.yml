@@ -22,19 +22,27 @@ jobs:
             exit 1
           fi
           echo "PASS: redis-port output matches custom port"
-      - name: Assert redis-server is running on custom port 6380
+      - name: Assert Redis is running on custom port
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          echo "Checking if redis-server is listening on port 6380..."
-          if ! redis-cli -p 6380 ping | grep -q "PONG"; then
-            echo "FAIL: redis-server did not respond to PING on port 6380"
+          echo "Pinging Redis on port 6380..."
+          PONG=$("$REDIS_PATH/redis-cli" -p 6380 ping)
+          echo "Response: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG from redis-cli ping on port 6380, got '$PONG'"
             exit 1
           fi
-          echo "PASS: redis-server is running on custom port 6380"
-      - name: Assert redis-server is NOT running on default port 6379
+          echo "PASS: Redis is running on custom port 6380"
+      - name: Assert Redis is NOT running on default port 6379
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          echo "Checking that redis-server is NOT on default port 6379..."
-          if redis-cli -p 6379 ping 2>/dev/null | grep -q "PONG"; then
-            echo "FAIL: redis-server unexpectedly responded on port 6379"
+          echo "Checking Redis is NOT on default port 6379..."
+          PONG=$("$REDIS_PATH/redis-cli" -p 6379 ping 2>&1 || true)
+          echo "Response: $PONG"
+          if [ "$PONG" = "PONG" ]; then
+            echo "FAIL: Redis unexpectedly responded on default port 6379"
             exit 1
           fi
-          echo "PASS: redis-server is not running on default port 6379"
+          echo "PASS: Redis is not on default port 6379"

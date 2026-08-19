@@ -25,17 +25,24 @@ jobs:
             exit 1
           fi
           echo "PASS: redis-port output is correct"
-      - name: Assert redis-server is running
+      - name: Assert Redis is running
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          echo "Checking if redis-server is listening on port 6379..."
-          if ! redis-cli -p 6379 ping | grep -q "PONG"; then
-            echo "FAIL: redis-server did not respond to PING on port 6379"
+          echo "Pinging Redis on port 6379..."
+          PONG=$("$REDIS_PATH/redis-cli" -p 6379 ping)
+          echo "Response: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG from redis-cli ping, got '$PONG'"
             exit 1
           fi
-          echo "PASS: redis-server is running"
+          echo "PASS: Redis is running"
       - name: Assert maxmemory config is applied
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          MAXMEM=$(redis-cli -p 6379 CONFIG GET maxmemory | tail -1)
+          echo "Checking maxmemory config..."
+          MAXMEM=$("$REDIS_PATH/redis-cli" -p 6379 config get maxmemory | tail -1)
           echo "maxmemory value: $MAXMEM"
           # 64mb = 67108864 bytes
           if [ "$MAXMEM" != "67108864" ]; then
@@ -44,8 +51,11 @@ jobs:
           fi
           echo "PASS: maxmemory config is applied correctly"
       - name: Assert maxmemory-policy config is applied
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          POLICY=$(redis-cli -p 6379 CONFIG GET maxmemory-policy | tail -1)
+          echo "Checking maxmemory-policy config..."
+          POLICY=$("$REDIS_PATH/redis-cli" -p 6379 config get maxmemory-policy | tail -1)
           echo "maxmemory-policy value: $POLICY"
           if [ "$POLICY" != "allkeys-lru" ]; then
             echo "FAIL: expected maxmemory-policy to be 'allkeys-lru', got '$POLICY'"

@@ -1,0 +1,51 @@
+name: Test Redis unix socket output
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7"
+          redis-port: "6379"
+          auto-start: "true"
+      - name: Assert redis-unix-socket output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "actual redis-unix-socket: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected redis-unix-socket to be non-empty"
+            exit 1
+          fi
+          echo "PASS: redis-unix-socket output is set"
+      - name: Assert Redis is reachable via unix socket
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          SOCKET: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "Pinging Redis via unix socket: $SOCKET"
+          PONG=$("$REDIS_PATH/redis-cli" -s "$SOCKET" ping)
+          echo "Response: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG from redis-cli via unix socket, got '$PONG'"
+            exit 1
+          fi
+          echo "PASS: Redis is reachable via unix socket"
+      - name: Assert Redis set/get works via unix socket
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          SOCKET: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "Testing set/get via unix socket..."
+          "$REDIS_PATH/redis-cli" -s "$SOCKET" set testkey "hello-socket"
+          VAL=$("$REDIS_PATH/redis-cli" -s "$SOCKET" get testkey)
+          echo "Value: $VAL"
+          if [ "$VAL" != "hello-socket" ]; then
+            echo "FAIL: expected 'hello-socket', got '$VAL'"
+            exit 1
+          fi
+          echo "PASS: Redis set/get works via unix socket"
