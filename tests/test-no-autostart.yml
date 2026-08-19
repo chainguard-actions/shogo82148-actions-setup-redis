@@ -1,0 +1,58 @@
+name: Test Redis setup without auto-start
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "latest"
+          redis-port: "6379"
+          auto-start: "false"
+      - name: Assert redis-path output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "actual redis-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected redis-path to be non-empty even when auto-start is false"
+            exit 1
+          fi
+          echo "PASS: redis-path is set to $ACTUAL"
+      - name: Assert redis-server binary exists (installed but not started)
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Checking redis-server binary at: $REDIS_PATH"
+          if [ ! -f "$REDIS_PATH/redis-server" ]; then
+            echo "FAIL: redis-server binary not found at $REDIS_PATH/redis-server"
+            exit 1
+          fi
+          echo "PASS: redis-server binary exists"
+      - name: Assert Redis is NOT running (auto-start disabled)
+        run: |
+          echo "Checking that Redis is NOT running on port 6379..."
+          PONG=$(redis-cli -p 6379 ping 2>/dev/null || true)
+          echo "Response: $PONG"
+          if [ "$PONG" = "PONG" ]; then
+            echo "FAIL: Redis should not be running when auto-start is false"
+            exit 1
+          fi
+          echo "PASS: Redis is not running (auto-start=false)"
+      - name: Manually start Redis and verify it works
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Manually starting redis-server..."
+          "$REDIS_PATH/redis-server" --port 6379 --daemonize yes --logfile /tmp/redis-manual.log
+          sleep 2
+          PONG=$(redis-cli -p 6379 ping)
+          echo "Response: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG after manual start, got '$PONG'"
+            exit 1
+          fi
+          echo "PASS: Redis started manually and is responding"

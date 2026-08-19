@@ -1,0 +1,55 @@
+name: Test Redis setup with auto-start disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis binary extraction)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7"
+          auto-start: "false"
+      - name: Assert redis-path output is set
+        env:
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "actual redis-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: redis-path output is empty"
+            exit 1
+          fi
+          if [ ! -f "$ACTUAL/redis-cli" ]; then
+            echo "FAIL: redis-cli not found at $ACTUAL/redis-cli"
+            exit 1
+          fi
+          echo "PASS: redis-path=$ACTUAL"
+      - name: Assert Redis is NOT running (auto-start disabled)
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          PORT=6379
+          echo "Checking that Redis is NOT running on port $PORT"
+          if "$REDIS_PATH/redis-cli" -p "$PORT" ping 2>/dev/null | grep -q PONG; then
+            echo "FAIL: Redis is running but auto-start was disabled"
+            exit 1
+          fi
+          echo "PASS: Redis is not running as expected"
+      - name: Manually start Redis and verify it works
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          PORT=6379
+          echo "Starting Redis manually from $REDIS_PATH"
+          "$REDIS_PATH/redis-server" --port "$PORT" --daemonize yes
+          sleep 2
+          if ! "$REDIS_PATH/redis-cli" -p "$PORT" ping | grep -q PONG; then
+            echo "FAIL: manually started Redis did not respond to PING"
+            exit 1
+          fi
+          echo "PASS: manually started Redis is running"

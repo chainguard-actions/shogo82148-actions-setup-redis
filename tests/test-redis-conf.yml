@@ -1,4 +1,4 @@
-name: Test redis setup with redis-conf input
+name: Test Redis setup with extra redis.conf options
 on:
   workflow_dispatch:
 jobs:
@@ -6,40 +6,53 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis binary extraction)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd
       - id: setup-redis
         uses: .
         with:
           redis-version: "7"
-          redis-port: "6379"
           auto-start: "true"
           redis-conf: |
             maxmemory 64mb
             maxmemory-policy allkeys-lru
-      - name: Assert redis-port output
+      - name: Assert Redis is running
         env:
-          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          PORT: ${{ steps.setup-redis.outputs.redis-port }}
         run: |
-          echo "redis-port: $REDIS_PORT"
-          if [ -z "$REDIS_PORT" ]; then
-            echo "FAIL: redis-port output is empty"
+          echo "Checking Redis on port $PORT using $REDIS_PATH/redis-cli"
+          if ! "$REDIS_PATH/redis-cli" -p "$PORT" ping | grep -q PONG; then
+            echo "FAIL: redis-cli ping did not return PONG"
             exit 1
           fi
-          echo "PASS: redis-port=$REDIS_PORT"
-      - name: Assert redis-server is running with custom config
+          echo "PASS: Redis is running"
+      - name: Assert maxmemory config is applied
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          PORT: ${{ steps.setup-redis.outputs.redis-port }}
         run: |
-          echo "Checking redis-server on port 6379..."
-          if ! redis-cli -p 6379 ping | grep -q PONG; then
-            echo "FAIL: redis-server did not respond to PING"
-            exit 1
-          fi
-          echo "PASS: redis-server is running with custom redis-conf"
-      - name: Assert maxmemory config was applied
-        run: |
-          MAXMEM=$(redis-cli -p 6379 config get maxmemory | tail -1)
-          echo "maxmemory: $MAXMEM"
+          echo "Checking maxmemory config"
+          MAXMEM=$("$REDIS_PATH/redis-cli" -p "$PORT" config get maxmemory | tail -1)
+          echo "maxmemory value: $MAXMEM"
           # 64mb = 67108864 bytes
           if [ "$MAXMEM" != "67108864" ]; then
             echo "FAIL: expected maxmemory=67108864, got $MAXMEM"
             exit 1
           fi
-          echo "PASS: maxmemory config applied correctly"
+          echo "PASS: maxmemory is set correctly"
+      - name: Assert maxmemory-policy config is applied
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "Checking maxmemory-policy config"
+          POLICY=$("$REDIS_PATH/redis-cli" -p "$PORT" config get maxmemory-policy | tail -1)
+          echo "maxmemory-policy value: $POLICY"
+          if [ "$POLICY" != "allkeys-lru" ]; then
+            echo "FAIL: expected maxmemory-policy=allkeys-lru, got $POLICY"
+            exit 1
+          fi
+          echo "PASS: maxmemory-policy is set correctly"

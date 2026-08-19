@@ -1,4 +1,4 @@
-name: Test redis setup with custom port
+name: Test Redis setup with custom port
 on:
   workflow_dispatch:
 jobs:
@@ -6,6 +6,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis binary extraction)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd
       - id: setup-redis
         uses: .
         with:
@@ -14,19 +18,21 @@ jobs:
           auto-start: "true"
       - name: Assert redis-port output matches custom port
         env:
-          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
         run: |
-          echo "redis-port: $REDIS_PORT"
-          if [ "$REDIS_PORT" != "6380" ]; then
-            echo "FAIL: expected redis-port=6380, got $REDIS_PORT"
+          echo "actual redis-port: $ACTUAL"
+          if [ "$ACTUAL" != "6380" ]; then
+            echo "FAIL: expected redis-port=6380, got $ACTUAL"
             exit 1
           fi
-          echo "PASS: redis-port=$REDIS_PORT"
-      - name: Assert redis-server is running on custom port
+          echo "PASS: redis-port=$ACTUAL"
+      - name: Assert Redis is running on custom port
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          echo "Checking redis-server on port 6380..."
-          if ! redis-cli -p 6380 ping | grep -q PONG; then
-            echo "FAIL: redis-server did not respond to PING on port 6380"
+          echo "Checking Redis on port 6380 using $REDIS_PATH/redis-cli"
+          if ! "$REDIS_PATH/redis-cli" -p 6380 ping | grep -q PONG; then
+            echo "FAIL: redis-cli ping on port 6380 did not return PONG"
             exit 1
           fi
-          echo "PASS: redis-server is running on port 6380"
+          echo "PASS: Redis is running on port 6380"

@@ -1,0 +1,154 @@
+name: "Test"
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    timeout-minutes: 13
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04-arm
+          - ubuntu-22.04-arm
+          - ubuntu-24.04
+          - ubuntu-22.04
+          - macos-26
+          - macos-15
+          - macos-14
+          - macos-15-intel
+        redis:
+          # The latest version that supports OpenSSL 1.1.1
+          - "6.2"
+
+          # The latest version of Redis
+          - "8.6"
+
+          # The latest version of Valkey
+          - "valkey-9.0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: "false"
+
+      - name: Set Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - run: npm run bundle
+      - id: setup
+        name: use the action
+        uses: ./
+        with:
+          redis-version: ${{ matrix.redis }}
+
+      - name: connect via tcp port
+        env:
+          REDIS_PORT: ${{ steps.setup.outputs.redis-port }}
+        run: redis-cli -h 127.0.0.1 -p "$REDIS_PORT" ping
+      - name: connect via unix domain socket
+        env:
+          REDIS_UNIX_SOCKET: ${{ steps.setup.outputs.redis-unix-socket }}
+        run: redis-cli -s "$REDIS_UNIX_SOCKET" ping
+
+  test-tls:
+    timeout-minutes: 21
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04-arm
+          - ubuntu-22.04-arm
+          - ubuntu-24.04
+          - ubuntu-22.04
+          - macos-26
+          - macos-15
+          - macos-14
+          - macos-15-intel
+        redis:
+          # The latest version that supports OpenSSL 1.1.1
+          - "6.2"
+
+          # The latest version of Redis
+          - "8.6"
+
+          # The latest version of Valkey
+          - "valkey-9.0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: "false"
+
+      - name: Set Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run bundle
+
+      # reproduce https://github.com/shogo82148/actions-setup-redis/issues/693
+      - id: tmp
+        run: |
+          echo TEST_RUNNER_TOOL_CACHE="$(mktemp -d)" >> "$GITHUB_ENV"
+
+      - id: setup
+        name: use the action
+        uses: ./
+        with:
+          redis-version: ${{ matrix.redis }}
+          redis-port: "0"
+          redis-tls-port: "6379"
+
+      - name: connect via tls
+        env:
+          REDIS_TLS_PORT: ${{ steps.setup.outputs.redis-tls-port }}
+          REDIS_TLS_DIR: ${{ steps.setup.outputs.redis-tls-dir }}
+        run: |
+          redis-cli -h 127.0.0.1 -p "$REDIS_TLS_PORT" \
+            --tls \
+            --cert "$REDIS_TLS_DIR/redis.crt" \
+            --key "$REDIS_TLS_DIR/redis.key" \
+            --cacert "$REDIS_TLS_DIR/ca.crt" \
+            ping
+
+  lint:
+    timeout-minutes: 11
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: "false"
+
+      - name: Set Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run format:check
