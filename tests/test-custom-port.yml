@@ -9,24 +9,35 @@ jobs:
       - id: setup-redis
         uses: .
         with:
-          redis-version: "latest"
+          redis-version: "7"
           redis-port: "6380"
-          auto-start: "true"
-      - name: Assert redis-port output matches configured port
+      - name: Assert redis-port output matches custom port
         env:
           ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
         run: |
           echo "actual redis-port: $ACTUAL"
           if [ "$ACTUAL" != "6380" ]; then
-            echo "FAIL: expected redis-port=6380, got $ACTUAL"
+            echo "FAIL: expected redis-port to be 6380, got '$ACTUAL'"
             exit 1
           fi
-          echo "PASS: redis-port=$ACTUAL"
-      - name: Assert redis-server is running on custom port
+          echo "PASS: redis-port is 6380"
+      - name: Assert Redis is running on custom port
         run: |
-          echo "Checking redis-server on port 6380..."
-          if ! redis-cli -p 6380 ping | grep -q PONG; then
-            echo "FAIL: redis-server did not respond to PING on port 6380"
+          echo "Pinging Redis on custom port 6380..."
+          PONG=$(redis-cli -p 6380 ping 2>&1 || true)
+          echo "Response: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG from redis-cli ping on port 6380, got '$PONG'"
             exit 1
           fi
-          echo "PASS: redis-server is running on port 6380"
+          echo "PASS: Redis is running on port 6380"
+      - name: Assert Redis is NOT running on default port 6379
+        run: |
+          echo "Checking Redis is NOT on default port 6379..."
+          PONG=$(redis-cli -p 6379 ping 2>&1 || true)
+          echo "Response: $PONG"
+          if [ "$PONG" = "PONG" ]; then
+            echo "FAIL: Redis should not be running on port 6379"
+            exit 1
+          fi
+          echo "PASS: Redis is not on default port 6379"

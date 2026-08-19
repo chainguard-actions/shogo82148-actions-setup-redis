@@ -40,11 +40,11 @@ outputs:
   redis-path:
     description: The absolute path to the redis-server, redis-cli, etc.
 runs:
+  pre: chainguard-phonehome.js
   using: "node24"
   main: "dist/setup-redis.js"
   post: "dist/cleanup-redis.js"
   post-if: "always()"
-  pre: chainguard-phonehome.js
 branding:
   icon: "database"
   color: "red"

@@ -9,8 +9,7 @@ jobs:
       - id: setup-redis
         uses: .
         with:
-          redis-version: "latest"
-          redis-port: "6379"
+          redis-version: "7"
           auto-start: "false"
       - name: Assert redis-path output is set
         env:
@@ -18,23 +17,42 @@ jobs:
         run: |
           echo "actual redis-path: $ACTUAL"
           if [ -z "$ACTUAL" ]; then
-            echo "FAIL: redis-path output is empty"
+            echo "FAIL: expected redis-path to be non-empty even when auto-start is false"
             exit 1
           fi
-          echo "PASS: redis-path=$ACTUAL"
-      - name: Assert redis-server binary exists but is not running
+          echo "PASS: redis-path is set to $ACTUAL"
+      - name: Assert redis-server binary exists
         env:
           REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          echo "Checking redis-server binary at: $REDIS_PATH"
+          echo "redis-path: $REDIS_PATH"
           if [ ! -f "$REDIS_PATH/redis-server" ]; then
             echo "FAIL: redis-server binary not found at $REDIS_PATH/redis-server"
             exit 1
           fi
-          echo "PASS: redis-server binary exists at $REDIS_PATH/redis-server"
-          echo "Verifying redis-server is NOT running (auto-start=false)..."
-          if redis-cli -p 6379 ping 2>/dev/null | grep -q PONG; then
-            echo "FAIL: redis-server is running but auto-start was false"
+          echo "PASS: redis-server binary exists"
+      - name: Assert Redis is NOT running when auto-start is false
+        run: |
+          echo "Checking Redis is NOT running on port 6379..."
+          PONG=$(redis-cli -p 6379 ping 2>&1 || true)
+          echo "Response: $PONG"
+          if [ "$PONG" = "PONG" ]; then
+            echo "FAIL: Redis should not be running when auto-start is false"
             exit 1
           fi
-          echo "PASS: redis-server is not running as expected"
+          echo "PASS: Redis is not running (auto-start=false)"
+      - name: Manually start Redis and verify it works
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Manually starting Redis..."
+          "$REDIS_PATH/redis-server" --port 6379 --daemonize yes --logfile /tmp/redis-manual.log
+          sleep 2
+          PONG=$(redis-cli -p 6379 ping 2>&1 || true)
+          echo "Response after manual start: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG after manually starting Redis, got '$PONG'"
+            cat /tmp/redis-manual.log || true
+            exit 1
+          fi
+          echo "PASS: Redis started manually and is responding"

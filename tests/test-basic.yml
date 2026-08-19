@@ -9,34 +9,44 @@ jobs:
       - id: setup-redis
         uses: .
         with:
-          redis-version: "latest"
-          redis-port: "6379"
-          auto-start: "true"
+          redis-version: "7"
       - name: Assert redis-port output
         env:
           ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
         run: |
           echo "actual redis-port: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: redis-port output is empty"
+          if [ "$ACTUAL" != "6379" ]; then
+            echo "FAIL: expected redis-port to be 6379, got '$ACTUAL'"
             exit 1
           fi
-          echo "PASS: redis-port=$ACTUAL"
-      - name: Assert redis-path output
+          echo "PASS: redis-port is 6379"
+      - name: Assert redis-path output is set
         env:
           ACTUAL: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
           echo "actual redis-path: $ACTUAL"
           if [ -z "$ACTUAL" ]; then
-            echo "FAIL: redis-path output is empty"
+            echo "FAIL: expected redis-path to be non-empty"
             exit 1
           fi
-          echo "PASS: redis-path=$ACTUAL"
-      - name: Assert redis-server is running
+          echo "PASS: redis-path is set to $ACTUAL"
+      - name: Assert redis-server binary exists
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
         run: |
-          echo "Checking redis-server on port 6379..."
-          if ! redis-cli -p 6379 ping | grep -q PONG; then
-            echo "FAIL: redis-server did not respond to PING"
+          echo "redis-path: $REDIS_PATH"
+          if [ ! -f "$REDIS_PATH/redis-server" ]; then
+            echo "FAIL: redis-server binary not found at $REDIS_PATH/redis-server"
             exit 1
           fi
-          echo "PASS: redis-server is running"
+          echo "PASS: redis-server binary exists"
+      - name: Assert Redis is running and accepting connections
+        run: |
+          echo "Pinging Redis on default port 6379..."
+          PONG=$(redis-cli -p 6379 ping 2>&1 || true)
+          echo "Response: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG from redis-cli ping, got '$PONG'"
+            exit 1
+          fi
+          echo "PASS: Redis is running and responding"

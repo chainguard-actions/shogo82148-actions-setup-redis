@@ -1,4 +1,4 @@
-name: Test Redis setup with redis-conf input
+name: Test Redis setup with extra configuration
 on:
   workflow_dispatch:
 jobs:
@@ -9,38 +9,38 @@ jobs:
       - id: setup-redis
         uses: .
         with:
-          redis-version: "latest"
-          redis-port: "6379"
-          auto-start: "true"
+          redis-version: "7"
           redis-conf: |
             maxmemory 64mb
             maxmemory-policy allkeys-lru
-      - name: Assert redis-port output is set
-        env:
-          ACTUAL: ${{ steps.setup-redis.outputs.redis-port }}
+      - name: Assert Redis is running
         run: |
-          echo "actual redis-port: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: redis-port output is empty"
+          echo "Pinging Redis on default port 6379..."
+          PONG=$(redis-cli -p 6379 ping 2>&1 || true)
+          echo "Response: $PONG"
+          if [ "$PONG" != "PONG" ]; then
+            echo "FAIL: expected PONG from redis-cli ping, got '$PONG'"
             exit 1
           fi
-          echo "PASS: redis-port=$ACTUAL"
-      - name: Assert redis-server is running
+          echo "PASS: Redis is running"
+      - name: Assert maxmemory config is applied
         run: |
-          echo "Checking redis-server on port 6379..."
-          if ! redis-cli -p 6379 ping | grep -q PONG; then
-            echo "FAIL: redis-server did not respond to PING"
-            exit 1
-          fi
-          echo "PASS: redis-server is running"
-      - name: Assert maxmemory config was applied
-        run: |
-          echo "Checking maxmemory config..."
-          MAXMEM=$(redis-cli -p 6379 CONFIG GET maxmemory | tail -1)
+          echo "Checking maxmemory configuration..."
+          MAXMEM=$(redis-cli -p 6379 config get maxmemory | tail -1 2>&1 || true)
           echo "maxmemory value: $MAXMEM"
           # 64mb = 67108864 bytes
           if [ "$MAXMEM" != "67108864" ]; then
-            echo "FAIL: expected maxmemory=67108864, got $MAXMEM"
+            echo "FAIL: expected maxmemory to be 67108864 (64mb), got '$MAXMEM'"
             exit 1
           fi
-          echo "PASS: maxmemory=$MAXMEM"
+          echo "PASS: maxmemory is set to 64mb"
+      - name: Assert maxmemory-policy config is applied
+        run: |
+          echo "Checking maxmemory-policy configuration..."
+          POLICY=$(redis-cli -p 6379 config get maxmemory-policy | tail -1 2>&1 || true)
+          echo "maxmemory-policy value: $POLICY"
+          if [ "$POLICY" != "allkeys-lru" ]; then
+            echo "FAIL: expected maxmemory-policy to be allkeys-lru, got '$POLICY'"
+            exit 1
+          fi
+          echo "PASS: maxmemory-policy is set to allkeys-lru"
