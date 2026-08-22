@@ -1,0 +1,66 @@
+name: Test Redis setup with specific version
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis binary extraction)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7.0"
+      - name: Assert redis-port output is set
+        env:
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "redis-port: $REDIS_PORT"
+          if [ -z "$REDIS_PORT" ]; then
+            echo "FAIL: redis-port output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-port=$REDIS_PORT"
+      - name: Assert redis-path output is set
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ -z "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-path=$REDIS_PATH"
+      - name: Assert Redis version is 7.x
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          VERSION=$("$REDIS_PATH/redis-cli" -p "$REDIS_PORT" info server | grep redis_version | tr -d '\r' | cut -d: -f2)
+          echo "Redis version: $VERSION"
+          if [ -z "$VERSION" ]; then
+            echo "FAIL: could not determine Redis version"
+            exit 1
+          fi
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          if [ "$MAJOR" != "7" ]; then
+            echo "FAIL: expected Redis major version 7 but got $MAJOR"
+            exit 1
+          fi
+          echo "PASS: Redis version $VERSION is 7.x as expected"
+      - name: Assert redis-server can handle basic operations
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          "$REDIS_PATH/redis-cli" -p "$REDIS_PORT" set version_test "7.x"
+          RESULT=$("$REDIS_PATH/redis-cli" -p "$REDIS_PORT" get version_test)
+          echo "got: $RESULT"
+          if [ "$RESULT" != "7.x" ]; then
+            echo "FAIL: expected '7.x' but got '$RESULT'"
+            exit 1
+          fi
+          echo "PASS: Redis 7.x set/get works"

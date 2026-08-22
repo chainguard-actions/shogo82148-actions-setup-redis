@@ -1,0 +1,72 @@
+name: Test basic Redis setup
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis binary extraction)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "latest"
+      - name: Assert redis-port output is set
+        env:
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "redis-port: $REDIS_PORT"
+          if [ -z "$REDIS_PORT" ]; then
+            echo "FAIL: redis-port output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-port=$REDIS_PORT"
+      - name: Assert redis-path output is set
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ -z "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-path=$REDIS_PATH"
+      - name: Assert redis-server binary exists
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Checking redis-server binary at $REDIS_PATH/redis-server"
+          if [ ! -f "$REDIS_PATH/redis-server" ]; then
+            echo "FAIL: redis-server binary not found at $REDIS_PATH/redis-server"
+            exit 1
+          fi
+          echo "PASS: redis-server binary found"
+      - name: Assert redis-server is running on default port
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "Pinging Redis on port $REDIS_PORT"
+          RESULT=$("$REDIS_PATH/redis-cli" -p "$REDIS_PORT" ping)
+          echo "ping result: $RESULT"
+          if [ "$RESULT" != "PONG" ]; then
+            echo "FAIL: expected PONG but got '$RESULT'"
+            exit 1
+          fi
+          echo "PASS: Redis is responding to ping"
+      - name: Assert redis-server can set and get a key
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          "$REDIS_PATH/redis-cli" -p "$REDIS_PORT" set testkey testvalue
+          RESULT=$("$REDIS_PATH/redis-cli" -p "$REDIS_PORT" get testkey)
+          echo "got: $RESULT"
+          if [ "$RESULT" != "testvalue" ]; then
+            echo "FAIL: expected 'testvalue' but got '$RESULT'"
+            exit 1
+          fi
+          echo "PASS: Redis set/get works"

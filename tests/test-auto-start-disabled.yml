@@ -1,0 +1,62 @@
+name: Test Redis setup with auto-start disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis binary extraction)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "latest"
+          auto-start: "false"
+      - name: Assert redis-path output is set (binary installed)
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ -z "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-path=$REDIS_PATH"
+      - name: Assert redis binary exists at reported path
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Checking redis-server binary at $REDIS_PATH/redis-server"
+          if [ ! -f "$REDIS_PATH/redis-server" ]; then
+            echo "FAIL: redis-server binary not found at $REDIS_PATH/redis-server"
+            exit 1
+          fi
+          echo "PASS: redis-server binary found"
+      - name: Assert redis-server is NOT running (auto-start=false)
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "Checking that Redis is NOT running on default port 6379"
+          if "$REDIS_PATH/redis-cli" -p 6379 ping 2>/dev/null | grep -q PONG; then
+            echo "FAIL: Redis is running but auto-start was set to false"
+            exit 1
+          fi
+          echo "PASS: Redis is not running as expected with auto-start=false"
+      - name: Manually start redis-server and verify it works
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          PORT=6379
+          echo "Starting redis-server manually on port $PORT"
+          "$REDIS_PATH/redis-server" --port "$PORT" --daemonize yes
+          sleep 2
+          RESULT=$("$REDIS_PATH/redis-cli" -p "$PORT" ping)
+          echo "ping result: $RESULT"
+          if [ "$RESULT" != "PONG" ]; then
+            echo "FAIL: redis-cli ping did not return PONG after manual start"
+            exit 1
+          fi
+          echo "PASS: Redis started manually and is responding"

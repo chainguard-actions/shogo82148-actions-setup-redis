@@ -1,0 +1,52 @@
+name: Test Redis unix socket output
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install zstd (required for Redis binary extraction)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zstd
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "latest"
+      - name: Assert redis-unix-socket output is set
+        env:
+          REDIS_SOCKET: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "redis-unix-socket: $REDIS_SOCKET"
+          if [ -z "$REDIS_SOCKET" ]; then
+            echo "FAIL: redis-unix-socket output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-unix-socket=$REDIS_SOCKET"
+      - name: Assert redis-server is accessible via unix socket
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          REDIS_SOCKET: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "Pinging Redis via unix socket: $REDIS_SOCKET"
+          RESULT=$("$REDIS_PATH/redis-cli" -s "$REDIS_SOCKET" ping)
+          echo "ping result: $RESULT"
+          if [ "$RESULT" != "PONG" ]; then
+            echo "FAIL: expected PONG via unix socket but got '$RESULT'"
+            exit 1
+          fi
+          echo "PASS: Redis is responding via unix socket"
+      - name: Assert redis-server can set and get via unix socket
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+          REDIS_SOCKET: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          "$REDIS_PATH/redis-cli" -s "$REDIS_SOCKET" set socket_test "hello"
+          RESULT=$("$REDIS_PATH/redis-cli" -s "$REDIS_SOCKET" get socket_test)
+          echo "got: $RESULT"
+          if [ "$RESULT" != "hello" ]; then
+            echo "FAIL: expected 'hello' but got '$RESULT'"
+            exit 1
+          fi
+          echo "PASS: Redis set/get via unix socket works"
