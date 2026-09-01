@@ -1,0 +1,56 @@
+name: Test basic Redis setup
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: setup-redis
+        uses: .
+        with:
+          redis-version: "7"
+      - name: Assert redis-port output
+        env:
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "redis-port: $REDIS_PORT"
+          if [ -z "$REDIS_PORT" ]; then
+            echo "FAIL: redis-port output is empty"
+            exit 1
+          fi
+          if [ "$REDIS_PORT" != "6379" ]; then
+            echo "FAIL: expected redis-port to be 6379, got $REDIS_PORT"
+            exit 1
+          fi
+          echo "PASS: redis-port=$REDIS_PORT"
+      - name: Assert redis-path output
+        env:
+          REDIS_PATH: ${{ steps.setup-redis.outputs.redis-path }}
+        run: |
+          echo "redis-path: $REDIS_PATH"
+          if [ -z "$REDIS_PATH" ]; then
+            echo "FAIL: redis-path output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-path=$REDIS_PATH"
+      - name: Assert redis-server is running
+        env:
+          REDIS_PORT: ${{ steps.setup-redis.outputs.redis-port }}
+        run: |
+          echo "Checking redis-server on port $REDIS_PORT"
+          if ! redis-cli -p "$REDIS_PORT" ping | grep -q PONG; then
+            echo "FAIL: redis-server did not respond to PING"
+            exit 1
+          fi
+          echo "PASS: redis-server responded to PING"
+      - name: Assert redis-unix-socket output
+        env:
+          REDIS_SOCKET: ${{ steps.setup-redis.outputs.redis-unix-socket }}
+        run: |
+          echo "redis-unix-socket: $REDIS_SOCKET"
+          if [ -z "$REDIS_SOCKET" ]; then
+            echo "FAIL: redis-unix-socket output is empty"
+            exit 1
+          fi
+          echo "PASS: redis-unix-socket=$REDIS_SOCKET"
