@@ -18,6 +18,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.56.0 | [`v1.56.0`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.56.0) | [`3e38d43`](https://github.com/shogo82148/actions-setup-redis/commit/3e38d435ea02619c76909c929ecc501806c7145e) |
 | v1.56.1 | [`v1.56.1`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.56.1) | [`2606989`](https://github.com/shogo82148/actions-setup-redis/commit/260698946aaa92b2a6858999fccb1a4444981d56) |
 | v1.57.0 | [`v1.57.0`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.57.0) | [`cffee94`](https://github.com/shogo82148/actions-setup-redis/commit/cffee944ffbd5abbbcdcae8f29dee5f22a8ca1f7) |
+| v1.58.0 | [`v1.58.0`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.58.0) | [`88a1fb3`](https://github.com/shogo82148/actions-setup-redis/commit/88a1fb308aae95aa485bf3da667c9d6e61be4c53) |
 
 ## Privacy
 
