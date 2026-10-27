@@ -1,0 +1,41 @@
+name: Test valkey distribution
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available (needed to extract binaries)
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO=sudo
+            $SUDO apt-get update -y && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          distribution: valkey
+          redis-version: "8"
+          redis-port: "6380"
+      - name: Assert valkey is running
+        env:
+          RPATH: ${{ steps.action.outputs.redis-path }}
+          PORT: ${{ steps.action.outputs.redis-port }}
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+        run: |
+          echo "path=$RPATH port=$PORT sock=$SOCK"
+          [ "$PORT" = "6380" ] || { echo "FAIL: expected port 6380"; exit 1; }
+          case "$RPATH" in
+            *valkey*) ;;
+            *) echo "FAIL: redis-path should be a valkey install"; exit 1 ;;
+          esac
+          CLI="$RPATH/redis-cli"
+          [ -x "$CLI" ] || CLI="$RPATH/valkey-cli"
+          OUT="$("$CLI" -s "$SOCK" ping)"
+          echo "ping: $OUT"
+          [ "$OUT" = "PONG" ] || { echo "FAIL: ping"; exit 1; }
+          INFO="$("$CLI" -p 6380 info server | tr -d '\r')"
+          echo "$INFO" | grep -E '^(valkey_version|server_name:valkey)' || { echo "FAIL: not a valkey server"; exit 1; }
+          echo "$INFO" | grep -E '^valkey_version:8\.' || { echo "FAIL: expected valkey 8.x"; exit 1; }
+          echo "PASS"

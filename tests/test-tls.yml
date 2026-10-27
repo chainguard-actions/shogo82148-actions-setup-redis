@@ -1,0 +1,46 @@
+name: Test TLS port
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd and openssl are available
+        run: |
+          NEED=""
+          command -v zstd >/dev/null 2>&1 || NEED="$NEED zstd"
+          command -v openssl >/dev/null 2>&1 || NEED="$NEED openssl"
+          if [ -n "$NEED" ]; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO=sudo
+            $SUDO apt-get update -y && $SUDO apt-get install -y $NEED
+          fi
+      - id: action
+        uses: .
+        with:
+          redis-tls-port: "6389"
+      - name: Assert TLS outputs and connectivity
+        env:
+          TLS_PORT: ${{ steps.action.outputs.redis-tls-port }}
+          TLS_DIR: ${{ steps.action.outputs.redis-tls-dir }}
+          RPATH: ${{ steps.action.outputs.redis-path }}
+        run: |
+          echo "tls-port=$TLS_PORT tls-dir=$TLS_DIR"
+          [ "$TLS_PORT" = "6389" ] || { echo "FAIL: expected tls-port 6389"; exit 1; }
+          if [ -z "$TLS_DIR" ]; then
+            if [ -e "$RPATH/openssl" ]; then
+              echo "FAIL: tls-dir empty although bundled openssl exists"
+              exit 1
+            fi
+            echo "PASS: this redis build has no TLS support; tls-dir empty"
+            exit 0
+          fi
+          for f in ca.crt ca.key redis.crt redis.key client.crt client.key server.crt server.key redis.dh; do
+            [ -f "$TLS_DIR/$f" ] || { echo "FAIL: missing $TLS_DIR/$f"; exit 1; }
+          done
+          OUT="$(redis-cli --tls -p 6389 --cert "$TLS_DIR/redis.crt" --key "$TLS_DIR/redis.key" --cacert "$TLS_DIR/ca.crt" ping)"
+          echo "tls ping: $OUT"
+          [ "$OUT" = "PONG" ] || { echo "FAIL: TLS ping"; exit 1; }
+          OUT="$(redis-cli -p 6379 ping)"
+          [ "$OUT" = "PONG" ] || { echo "FAIL: plain ping"; exit 1; }
+          echo "PASS"

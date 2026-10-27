@@ -1,0 +1,36 @@
+name: Test auto-start disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available (needed to extract redis binaries)
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO=sudo
+            $SUDO apt-get update -y && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          auto-start: "false"
+          redis-port: "6401"
+      - name: Assert installed but not started
+        env:
+          RPATH: ${{ steps.action.outputs.redis-path }}
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+          PORT: ${{ steps.action.outputs.redis-port }}
+        run: |
+          echo "path=$RPATH sock=$SOCK port=$PORT"
+          [ -n "$RPATH" ] || { echo "FAIL: redis-path empty"; exit 1; }
+          [ -x "$RPATH/redis-server" ] || { echo "FAIL: redis-server missing"; exit 1; }
+          [ -z "$SOCK" ] || { echo "FAIL: unix socket output should be empty"; exit 1; }
+          [ -z "$PORT" ] || { echo "FAIL: port output should be empty when not started"; exit 1; }
+          command -v redis-server || { echo "FAIL: redis-server not on PATH"; exit 1; }
+          if redis-cli -p 6401 ping >/dev/null 2>&1; then
+            echo "FAIL: redis should not be running"
+            exit 1
+          fi
+          echo "PASS"

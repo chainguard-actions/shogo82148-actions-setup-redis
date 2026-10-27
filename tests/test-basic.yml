@@ -1,0 +1,49 @@
+name: Test basic usage (latest redis, auto-start)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available (needed to extract redis binaries)
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO=sudo
+            $SUDO apt-get update -y && $SUDO apt-get install -y zstd
+          fi
+          zstd --version
+      - id: action
+        uses: .
+      - name: Assert outputs
+        env:
+          PORT: ${{ steps.action.outputs.redis-port }}
+          TLS_PORT: ${{ steps.action.outputs.redis-tls-port }}
+          TLS_DIR: ${{ steps.action.outputs.redis-tls-dir }}
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+          RPATH: ${{ steps.action.outputs.redis-path }}
+        run: |
+          echo "port=$PORT tls-port=$TLS_PORT tls-dir=$TLS_DIR sock=$SOCK path=$RPATH"
+          [ "$PORT" = "6379" ] || { echo "FAIL: expected port 6379"; exit 1; }
+          [ "$TLS_PORT" = "0" ] || { echo "FAIL: expected tls-port 0"; exit 1; }
+          [ -z "$TLS_DIR" ] || { echo "FAIL: expected empty tls-dir"; exit 1; }
+          [ -n "$SOCK" ] || { echo "FAIL: empty unix socket"; exit 1; }
+          [ -S "$SOCK" ] || { echo "FAIL: $SOCK is not a socket"; exit 1; }
+          [ -x "$RPATH/redis-server" ] || { echo "FAIL: redis-server not found in $RPATH"; exit 1; }
+          [ -x "$RPATH/redis-cli" ] || { echo "FAIL: redis-cli not found in $RPATH"; exit 1; }
+          echo "PASS"
+      - name: Assert redis is running and on PATH
+        env:
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+        run: |
+          command -v redis-cli || { echo "FAIL: redis-cli not on PATH"; exit 1; }
+          OUT="$(redis-cli -h 127.0.0.1 -p 6379 ping)"
+          echo "tcp ping: $OUT"
+          [ "$OUT" = "PONG" ] || { echo "FAIL: tcp ping"; exit 1; }
+          OUT="$(redis-cli -s "$SOCK" ping)"
+          echo "unix ping: $OUT"
+          [ "$OUT" = "PONG" ] || { echo "FAIL: unix ping"; exit 1; }
+          redis-cli -p 6379 set foo bar
+          VAL="$(redis-cli -p 6379 get foo)"
+          [ "$VAL" = "bar" ] || { echo "FAIL: get foo returned '$VAL'"; exit 1; }
+          echo "PASS"
