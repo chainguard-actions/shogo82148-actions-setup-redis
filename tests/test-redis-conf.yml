@@ -1,0 +1,29 @@
+name: Test extra redis-conf
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          redis-port: "16382"
+          redis-conf: |
+            maxmemory 10485760
+            databases 7
+      - name: Assert config applied
+        run: |
+          MM="$(redis-cli -p 16382 config get maxmemory | tail -n1 | tr -d '\r')"
+          DB="$(redis-cli -p 16382 config get databases | tail -n1 | tr -d '\r')"
+          echo "maxmemory=$MM databases=$DB"
+          [ "$MM" = "10485760" ] || { echo "FAIL: maxmemory"; exit 1; }
+          [ "$DB" = "7" ] || { echo "FAIL: databases"; exit 1; }
+          echo "PASS"

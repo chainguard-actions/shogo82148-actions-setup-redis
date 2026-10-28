@@ -1,0 +1,44 @@
+name: Test basic usage (latest redis, auto-start)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          redis-port: "16379"
+      - name: Assert outputs
+        env:
+          PORT: ${{ steps.action.outputs.redis-port }}
+          TLS_PORT: ${{ steps.action.outputs.redis-tls-port }}
+          REDIS_PATH: ${{ steps.action.outputs.redis-path }}
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+          TLS_DIR: ${{ steps.action.outputs.redis-tls-dir }}
+        run: |
+          echo "port=$PORT tls=$TLS_PORT path=$REDIS_PATH sock=$SOCK tlsdir='$TLS_DIR'"
+          [ "$PORT" = "16379" ] || { echo "FAIL: port"; exit 1; }
+          [ "$TLS_PORT" = "0" ] || { echo "FAIL: tls port"; exit 1; }
+          [ -z "$TLS_DIR" ] || { echo "FAIL: tls dir should be empty"; exit 1; }
+          [ -x "$REDIS_PATH/redis-server" ] || { echo "FAIL: redis-server missing"; exit 1; }
+          [ -x "$REDIS_PATH/redis-cli" ] || { echo "FAIL: redis-cli missing"; exit 1; }
+          [ -n "$SOCK" ] || { echo "FAIL: socket empty"; exit 1; }
+          echo "PASS"
+      - name: Assert redis-cli on PATH and server responds
+        run: |
+          which redis-cli || { echo "FAIL: redis-cli not on PATH"; exit 1; }
+          OUT="$(redis-cli -h 127.0.0.1 -p 16379 ping)"
+          echo "ping: $OUT"
+          [ "$OUT" = "PONG" ] || { echo "FAIL: expected PONG"; exit 1; }
+          redis-cli -h 127.0.0.1 -p 16379 set foo bar
+          V="$(redis-cli -h 127.0.0.1 -p 16379 get foo)"
+          [ "$V" = "bar" ] || { echo "FAIL: get returned '$V'"; exit 1; }
+          echo "PASS"

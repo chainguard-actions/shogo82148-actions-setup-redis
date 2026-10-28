@@ -1,0 +1,30 @@
+name: Test specific redis version
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          redis-version: "7.2"
+          redis-port: "16380"
+      - name: Assert version
+        env:
+          REDIS_PATH: ${{ steps.action.outputs.redis-path }}
+        run: |
+          OUT="$("$REDIS_PATH/redis-server" --version)"
+          echo "version: $OUT"
+          echo "$OUT" | grep -q "v=7\.2\." || { echo "FAIL: expected 7.2.x"; exit 1; }
+          SV="$(redis-cli -p 16380 info server | grep redis_version | tr -d '\r')"
+          echo "server: $SV"
+          echo "$SV" | grep -q "redis_version:7\.2\." || { echo "FAIL: running server not 7.2"; exit 1; }
+          echo "PASS"

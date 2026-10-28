@@ -1,0 +1,23 @@
+name: Test unsupported distribution fails
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          distribution: not-a-real-distribution
+          redis-port: "16385"
+      - name: Assert action failed
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          REDIS_PATH: ${{ steps.action.outputs.redis-path }}
+        run: |
+          echo "outcome: $OUTCOME path='$REDIS_PATH'"
+          [ "$OUTCOME" = "failure" ] || { echo "FAIL: expected failure"; exit 1; }
+          [ -z "$REDIS_PATH" ] || { echo "FAIL: redis-path should be empty"; exit 1; }
+          echo "PASS"

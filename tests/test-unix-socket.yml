@@ -1,0 +1,28 @@
+name: Test unix socket connection
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          redis-port: "16383"
+      - name: Assert unix socket works
+        env:
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+        run: |
+          echo "sock: $SOCK"
+          [ -S "$SOCK" ] || { echo "FAIL: socket file missing"; exit 1; }
+          OUT="$(redis-cli -s "$SOCK" ping)"
+          echo "ping: $OUT"
+          [ "$OUT" = "PONG" ] || { echo "FAIL: expected PONG"; exit 1; }
+          echo "PASS"

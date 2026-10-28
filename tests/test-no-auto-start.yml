@@ -1,0 +1,33 @@
+name: Test auto-start disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          auto-start: "false"
+          redis-port: "16381"
+      - name: Assert installed but not started
+        env:
+          REDIS_PATH: ${{ steps.action.outputs.redis-path }}
+          PORT: ${{ steps.action.outputs.redis-port }}
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+        run: |
+          echo "path=$REDIS_PATH port='$PORT' sock='$SOCK'"
+          [ -x "$REDIS_PATH/redis-server" ] || { echo "FAIL: redis-server missing"; exit 1; }
+          [ -z "$PORT" ] || { echo "FAIL: redis-port output should be empty when not started"; exit 1; }
+          [ -z "$SOCK" ] || { echo "FAIL: socket output should be empty when not started"; exit 1; }
+          if redis-cli -h 127.0.0.1 -p 16381 ping 2>/dev/null | grep -q PONG; then
+            echo "FAIL: server should not be running"; exit 1
+          fi
+          echo "PASS"
