@@ -1,0 +1,32 @@
+name: Test valkey distribution
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; [ "$(id -u)" != "0" ] && SUDO="sudo"
+            $SUDO apt-get update -y && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          distribution: valkey
+          redis-port: "16304"
+      - name: Assert valkey is running
+        env:
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+          RPATH: ${{ steps.action.outputs.redis-path }}
+        run: |
+          echo "path=$RPATH sock=$SOCK"
+          case "$RPATH" in *valkey*) ;; *) echo "FAIL: expected valkey tool path"; exit 1 ;; esac
+          R="$(redis-cli -s "$SOCK" ping)"
+          echo "ping: $R"
+          [ "$R" = "PONG" ] || { echo "FAIL: ping"; exit 1; }
+          INFO="$(redis-cli -p 16304 info server | tr -d '\r')"
+          echo "$INFO" | grep -E '^(valkey_version|server_name:valkey)' || { echo "FAIL: not valkey"; exit 1; }
+          echo "PASS"

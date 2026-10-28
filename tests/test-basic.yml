@@ -1,0 +1,48 @@
+name: Test basic usage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; [ "$(id -u)" != "0" ] && SUDO="sudo"
+            $SUDO apt-get update -y && $SUDO apt-get install -y zstd
+          fi
+          zstd --version
+      - id: action
+        uses: .
+        with:
+          redis-port: "16301"
+      - name: Assert outputs
+        env:
+          PORT: ${{ steps.action.outputs.redis-port }}
+          TLS_PORT: ${{ steps.action.outputs.redis-tls-port }}
+          TLS_DIR: ${{ steps.action.outputs.redis-tls-dir }}
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+          RPATH: ${{ steps.action.outputs.redis-path }}
+        run: |
+          echo "port=$PORT tls_port=$TLS_PORT tls_dir=$TLS_DIR sock=$SOCK path=$RPATH"
+          [ "$PORT" = "16301" ] || { echo "FAIL: redis-port"; exit 1; }
+          [ "$TLS_PORT" = "0" ] || { echo "FAIL: redis-tls-port"; exit 1; }
+          [ -z "$TLS_DIR" ] || { echo "FAIL: redis-tls-dir should be empty"; exit 1; }
+          [ -S "$SOCK" ] || { echo "FAIL: unix socket missing"; exit 1; }
+          [ -x "$RPATH/redis-server" ] || { echo "FAIL: redis-server missing"; exit 1; }
+          [ -x "$RPATH/redis-cli" ] || { echo "FAIL: redis-cli missing"; exit 1; }
+          echo "PASS"
+      - name: Assert redis responds
+        env:
+          SOCK: ${{ steps.action.outputs.redis-unix-socket }}
+        run: |
+          command -v redis-cli || { echo "FAIL: redis-cli not on PATH"; exit 1; }
+          R1="$(redis-cli -s "$SOCK" ping)"
+          R2="$(redis-cli -h 127.0.0.1 -p 16301 ping)"
+          echo "socket: $R1 tcp: $R2"
+          [ "$R1" = "PONG" ] && [ "$R2" = "PONG" ] || { echo "FAIL"; exit 1; }
+          redis-cli -p 16301 set foo bar
+          V="$(redis-cli -p 16301 get foo)"
+          [ "$V" = "bar" ] || { echo "FAIL: get returned '$V'"; exit 1; }
+          echo "PASS"

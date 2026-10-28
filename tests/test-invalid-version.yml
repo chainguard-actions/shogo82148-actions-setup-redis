@@ -1,0 +1,23 @@
+name: Test invalid version fails
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          redis-version: "0.0.1"
+          redis-port: "16305"
+      - name: Assert failure
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          RPATH: ${{ steps.action.outputs.redis-path }}
+        run: |
+          echo "outcome=$OUTCOME path=$RPATH"
+          [ "$OUTCOME" = "failure" ] || { echo "FAIL: expected failure"; exit 1; }
+          [ -z "$RPATH" ] || { echo "FAIL: redis-path should be empty"; exit 1; }
+          echo "PASS"

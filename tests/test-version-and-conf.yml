@@ -1,0 +1,36 @@
+name: Test specific version with extra redis.conf
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure zstd is available
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            SUDO=""; [ "$(id -u)" != "0" ] && SUDO="sudo"
+            $SUDO apt-get update -y && $SUDO apt-get install -y zstd
+          fi
+      - id: action
+        uses: .
+        with:
+          redis-version: "7.2"
+          redis-port: "16302"
+          redis-conf: |
+            maxmemory 12345678
+            databases 7
+      - name: Assert version and config
+        env:
+          PORT: ${{ steps.action.outputs.redis-port }}
+        run: |
+          [ "$PORT" = "16302" ] || { echo "FAIL: port output '$PORT'"; exit 1; }
+          VER="$(redis-cli -p 16302 info server | tr -d '\r' | grep '^redis_version:' | cut -d: -f2)"
+          echo "version: $VER"
+          case "$VER" in 7.2.*) ;; *) echo "FAIL: expected 7.2.x"; exit 1 ;; esac
+          MM="$(redis-cli -p 16302 config get maxmemory | tail -n1)"
+          DB="$(redis-cli -p 16302 config get databases | tail -n1)"
+          echo "maxmemory=$MM databases=$DB"
+          [ "$MM" = "12345678" ] || { echo "FAIL: maxmemory"; exit 1; }
+          [ "$DB" = "7" ] || { echo "FAIL: databases"; exit 1; }
+          echo "PASS"
