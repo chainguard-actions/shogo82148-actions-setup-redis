@@ -1,6 +1,16 @@
 {
   "owner": "shogo82148",
   "repo": "actions-setup-redis",
-  "version": "",
-  "url": "https://github.com/shogo82148/actions-setup-redis"
+  "version": "v1.61.0",
+  "commit_sha": "ae0182647afadb63583dd695f4312b6965fc28df",
+  "url": "https://github.com/shogo82148/actions-setup-redis",
+  "policy_sha": "374911c4be584df24e6da57af2d990570ef0f859",
+  "test_policy_sha": "843adf9e4b8f85d0c08b27b9d0b09dd094b54702",
+  "test_agent_version": "2",
+  "harden_agent_version": "2",
+  "dist_artifact": {
+    "gcs_uri": "gs://patch-actions-node-artifacts/dist-artifacts/shogo82148/actions-setup-redis/v1.61.0/sha256-2e2039bbbe5ef36e3110f0adfe03ef13f55b98df3a6fe47d88163fceffb69474.tar.gz",
+    "sha256": "2e2039bbbe5ef36e3110f0adfe03ef13f55b98df3a6fe47d88163fceffb69474",
+    "size_bytes": 1405453
+  }
 }
