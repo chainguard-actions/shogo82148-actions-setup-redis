@@ -24,6 +24,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.59.1 | [`v1.59.1`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.59.1) | [`198a67d`](https://github.com/shogo82148/actions-setup-redis/commit/198a67d1d50fe97a019fea48cde171af9059edc6) | [`HARDENING.md`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/blob/v1.59.1/HARDENING.md) |
 | v1.60.0 | [`v1.60.0`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.60.0) | [`d566e80`](https://github.com/shogo82148/actions-setup-redis/commit/d566e806806d1bac2b414538d57b2b7f721e1d83) | [`HARDENING.md`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/blob/v1.60.0/HARDENING.md) |
 | v1.61.0 | [`v1.61.0`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.61.0) | [`ae01826`](https://github.com/shogo82148/actions-setup-redis/commit/ae0182647afadb63583dd695f4312b6965fc28df) | [`HARDENING.md`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/blob/v1.61.0/HARDENING.md) |
+| v1.62.0 | [`v1.62.0`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/tree/v1.62.0) | [`4e15bd8`](https://github.com/shogo82148/actions-setup-redis/commit/4e15bd8c8cc5a7571b8abaf1903b7dbedfea083a) | [`HARDENING.md`](https://github.com/chainguard-actions/shogo82148-actions-setup-redis/blob/v1.62.0/HARDENING.md) |
 
 ## Privacy
 
